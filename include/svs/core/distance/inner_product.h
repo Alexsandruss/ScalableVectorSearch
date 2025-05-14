@@ -64,6 +64,9 @@ template <svs::arch::MicroArch Arch> class IP {
 /// externally.
 ///
 struct DistanceIP {
+    static constexpr bool distance_type =
+        false; // TODO: Use proper type, like DistanceType Enum
+
     /// Vectors are more similar if their similarity is greater.
     using compare = std::greater<>;
 

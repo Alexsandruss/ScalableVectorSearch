@@ -221,9 +221,17 @@ inline MicroArch string_to_microarch(const std::string& arch_name) {
 
 class MicroArchEnvironment {
   public:
+    // Delete constructors for singleton
+    MicroArchEnvironment(const MicroArchEnvironment&) = delete;
+    MicroArchEnvironment& operator=(const MicroArchEnvironment&) = delete;
+    MicroArchEnvironment(MicroArchEnvironment&&) = delete;
+    MicroArchEnvironment& operator=(MicroArchEnvironment&&) = delete;
+    ~MicroArchEnvironment() = default;
+
+    // Singleton instance
     static MicroArchEnvironment& get_instance() {
         // TODO: ensure thread safety
-        static MicroArchEnvironment instance;
+        static MicroArchEnvironment instance{};
         return instance;
     }
     MicroArch get_microarch() const { return max_arch_; }
@@ -246,6 +254,7 @@ class MicroArchEnvironment {
 
   private:
     MicroArchEnvironment() {
+        // clang-format off
         const std::vector<MicroArch> compiled_archs = {
 #if defined(__x86_64__)
             SVS_MICROARCH_COMPILED_nehalem
@@ -274,6 +283,7 @@ class MicroArchEnvironment {
 #endif
 #endif
         };
+        // clang-format on
         compiled_archs_ = compiled_archs;
         max_arch_ = MicroArch::baseline;
         for (const auto& arch : compiled_archs_) {
@@ -291,6 +301,72 @@ class MicroArchEnvironment {
     MicroArch max_arch_;
 };
 
+template <typename Functor, typename... Args>
+auto dispatch_by_arch(Functor&& f, Args&&... args) {
+    auto& arch_env = MicroArchEnvironment::get_instance();
+    auto arch = arch_env.get_microarch();
+    std::cout << "Dispatch to " << microarch_to_string(arch) << std::endl;
+
+    // clang-format off
+    switch (arch) {
+#if defined(__x86_64__)
+        case MicroArch::x86_64_v2:
+            return f.template operator()<MicroArch::x86_64_v2>(std::forward<Args>(args)...);
+        case MicroArch::nehalem:
+            return f.template operator()<MicroArch::nehalem>(std::forward<Args>(args)...);
+        case MicroArch::westmere:
+            return f.template operator()<MicroArch::westmere>(std::forward<Args>(args)...);
+        case MicroArch::sandybridge:
+            return f.template operator()<MicroArch::sandybridge>(std::forward<Args>(args)...);
+        case MicroArch::ivybridge:
+            return f.template operator()<MicroArch::ivybridge>(std::forward<Args>(args)...);
+        case MicroArch::haswell:
+            return f.template operator()<MicroArch::haswell>(std::forward<Args>(args)...);
+        case MicroArch::broadwell:
+            return f.template operator()<MicroArch::broadwell>(std::forward<Args>(args)...);
+        case MicroArch::skylake:
+            return f.template operator()<MicroArch::skylake>(std::forward<Args>(args)...);
+        case MicroArch::x86_64_v4:
+            return f.template operator()<MicroArch::x86_64_v4>(std::forward<Args>(args)...);
+        case MicroArch::skylake_avx512:
+            return f.template operator()<MicroArch::skylake_avx512>(std::forward<Args>(args)...);
+        case MicroArch::cascadelake:
+            return f.template operator()<MicroArch::cascadelake>(std::forward<Args>(args)...);
+        case MicroArch::cooperlake:
+            return f.template operator()<MicroArch::cooperlake>(std::forward<Args>(args)...);
+        case MicroArch::icelake_client:
+            return f.template operator()<MicroArch::icelake_client>(std::forward<Args>(args)...);
+        case MicroArch::icelake_server:
+            return f.template operator()<MicroArch::icelake_server>(std::forward<Args>(args)...);
+        case MicroArch::sapphirerapids:
+            return f.template operator()<MicroArch::sapphirerapids>(std::forward<Args>(args)...);
+        case MicroArch::graniterapids:
+            return f.template operator()<MicroArch::graniterapids>(std::forward<Args>(args)...);
+        case MicroArch::graniterapids_d:
+            return f.template operator()<MicroArch::graniterapids_d>(std::forward<Args>(args)...);
+#endif // __x86_64__
+
+#if defined(__arch64__) && defined(__APPLE__)
+        case MicroArch::m1:
+            return f.template operator()<MicroArch::m1>(std::forward<Args>(args)...);
+        case MicroArch::m2:
+            return f.template operator()<MicroArch::m2>(std::forward<Args>(args)...);
+#endif // __APPLE__
+
+#if defined(__aarch64__) && !defined(__APPLE__)
+        case MicroArch::neoverse_v1:
+            return f.template operator()<MicroArch::neoverse_v1>(std::forward<Args>(args)...);
+        case MicroArch::neoverse_n2:
+            return f.template operator()<MicroArch::neoverse_n2>(std::forward<Args>(args)...);
+#endif // __aarch64__
+
+        default:
+            throw std::invalid_argument("Unsupported microarchitecture");
+            // clang-format on
+    }
+}
+
+// clang-format off
 #if defined(__x86_64__)
 
 #define SVS_DISPATCH_CLASS_BY_MICROARCH(cls, method, args)                                 \
@@ -348,6 +424,7 @@ class MicroArchEnvironment {
 #endif
 
 #endif
+// clang-format on
 
 #define SVS_INST_CLASS_METHOD_TMPL_BY_MICROARCH(  \
     return_type, cls, method, template_args, args \
